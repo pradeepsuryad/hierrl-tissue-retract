@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hierrl-tissue-retract"
+version = "1.0.0"
+description = "Hierarchical skill chaining vs demonstration-guided RL for surgical tissue retraction"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Pradeep Surya Dadi", email = "dadi.pr@northeastern.edu" }]
+dependencies = [
+    "gymnasium>=0.29",
+    "torch>=2.0",
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+    "pandas>=2.0",
+    "tqdm>=4.65",
+]
+
+[project.urls]
+Homepage = "https://github.com/pradeepsuryad/hierrl-tissue-retract"
+
+[tool.setuptools]
+packages = ["hierrl", "hierrl.envs", "hierrl.algos"]

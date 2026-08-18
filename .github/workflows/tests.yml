@@ -1,0 +1,43 @@
+name: tests
+
+# The package under hierrl/ is extracted from the notebook that produced the
+# published results, so CI is what stops the two drifting apart. It runs the
+# unit tests and re-checks the paper's demo-controller claim on every push.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        # torch from the CPU index deliberately, and before the editable
+        # install: pyproject requires torch>=2.0, so pip would otherwise fetch
+        # the default wheel with its bundled CUDA runtime -- gigabytes, on a
+        # runner with no GPU. The paper's runs are single-CPU-core anyway.
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e .
+          pip install pytest
+
+      - name: Unit tests
+        run: python -m pytest tests/ -q
+
+      - name: Reproduce the paper's demo-controller claim
+        # Conclusion 2: phase-separated demonstrations succeed where a naive
+        # controller scores zero. Cheap enough for CI; the full 200k-step
+        # training comparison is the notebook's job.
+        run: python scripts/verify_paper_claims.py --episodes 50

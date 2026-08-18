@@ -5,6 +5,8 @@
 Pradeep Surya Dadi — Khoury College of Computer Sciences, Northeastern University
 CS 4180/5180 (Reinforcement Learning), Spring 2026 · `dadi.pr@northeastern.edu`
 
+[![tests](https://github.com/pradeepsuryad/hierrl-tissue-retract/actions/workflows/tests.yml/badge.svg)](https://github.com/pradeepsuryad/hierrl-tissue-retract/actions/workflows/tests.yml)
+
 📄 **[Read the paper](paper/hierrl-tissue-retract-aaai.pdf)** · 🖼 [Poster](paper/poster_a0.pdf) · 📓 [Notebook](notebooks/hierrl_v2_final.ipynb) · 📚 [Deep dive](docs/DEEP_DIVE.md)
 
 Autonomous tissue retraction — approach soft tissue, grasp it, lift it to a target
@@ -98,45 +100,63 @@ was the fastest route to eval robustness.
 | Randomisation | grasp target ~ U([−0.05, 0.05]³), target height H\* ~ U([0.15, 0.20]) m |
 | Termination | success (3 consecutive steps), tear, or 500-step truncation |
 
-## What this repository reproduces
+## Running it
 
-The notebook is the **v2** experiment: it implements the environment and all four
-algorithms, and it is what produces the 200k-step results above. Every constant in the
-paper's Table 1 was checked against it — spring constant, force limit, randomised target
-height, the 3-step/0.6H\* success condition, the jaw threshold and scale, all four
-algorithms' learning rates, batch sizes, buffers and warmups, the 80k BC anneal horizon,
-and the −0.5 GRASP jaw bias. Both documented bug fixes are present and commented.
+```bash
+pip install -e .
+pytest tests/ -q                              # 18 tests
+python scripts/verify_paper_claims.py         # re-checks conclusion 2
+```
 
-Two things it does **not** contain, and which therefore cannot be re-run from here:
+`hierrl/` is extracted from `notebooks/hierrl_v2_final.ipynb` — the notebook that
+produced the published results — so the package and the paper cannot drift apart. The
+environment was checked constant by constant against Table 1: spring constant, force
+limit, tear threshold, randomised target height, the 0.6 H\* / 3-consecutive-step
+success condition, jaw threshold and scale, translation scale, episode length, and every
+per-algorithm learning rate, batch size, buffer and warmup, plus the 80k BC anneal
+horizon and the −0.5 GRASP jaw bias. Both documented bug fixes are present and the tests
+pin them, so the thresholds that made the earlier prototype score near zero cannot be
+reintroduced unnoticed.
+
+`scripts/verify_paper_claims.py` reproduces conclusion 2 directly: the phase-separated
+demonstration controller succeeds on **50/50** episodes, and the naive controller that
+retracts while the jaw is still closing scores **0/50**. (The paper reports 96% for the
+phase-separated controller; the difference is the 0.04 action noise the notebook's demo
+generator adds for coverage, which this deterministic check omits.)
+
+### What is not here
 
 - **The v3 / v3T generalisation study.** The 26D goal-aware observation, the BC floor
-  (λ_min = 0.15), the continuous HOLD reward, the ViSkill-DEX sub-agents, and evaluation
-  on held-out seeds 100–109 are not in this notebook. The generalisation table above and
-  conclusions 3 and 4 come from the paper and are not reproducible from this code yet.
-- **Stored results.** The notebook is committed without outputs, so opening it shows code
-  only; the figures in `figures/` were extracted from a local executed copy. Reproducing
-  the numbers means re-running four algorithms for 200,000 steps each.
+  (λ_min = 0.15), the continuous HOLD reward, the ViSkill-DEX sub-agents and the
+  held-out-seed evaluation are not implemented in this codebase. The generalisation
+  table above and conclusions 3 and 4 come from the paper and cannot yet be re-run here.
+- **Stored training results.** The notebook is committed without outputs; the figures in
+  `figures/` were extracted from a local executed copy. Reproducing the numbers means
+  re-running four algorithms for 200,000 steps each.
 
-One known paper/code discrepancy: the paper specifies anchor jitter ε ~ N(0, 0.02² I),
-while the code uses `uniform(-0.02, 0.02)`.
+One paper/code discrepancy found while checking: the paper specifies anchor jitter
+ε ~ N(0, 0.02² I), while the code uses `uniform(-0.02, 0.02)`.
 
 ## Contents
 
 ```
+hierrl/     the package: envs/tissue_retract.py, algos/{sac,ddpg,dex,viskill}.py,
+            demos.py, train.py - extracted from the notebook
+tests/      18 tests pinning the paper's Table 1 constants and both bug fixes
+scripts/    verify_paper_claims.py
 paper/      the AAAI-format paper and the A0 poster
-notebooks/  hierrl_v2_final.ipynb - environment, all four algorithms, experiments
+notebooks/  hierrl_v2_final.ipynb - the original end-to-end run
 figures/    training dashboard and ViSkill skill timeline
 docs/       DEEP_DIVE.md - cell-by-cell walkthrough of every design decision
 ```
 
-## Relationship to `hierrl_tissue_retract`
+## Provenance
 
-The separate [`hierrl_tissue_retract`](https://github.com/pradeepsuryad/hierrl_tissue_retract)
-repository is an **earlier prototype and is superseded by this one.** It predates three
-environment fixes that are load-bearing for the results above — the success threshold
-(0.8 H\* held 10 steps → 0.6 H\* held 3), the spring constant (5 → 50 N/m), and randomised
-target height — and it reports near-zero success for every algorithm as a result. Treat
-this repository as the reference implementation and those numbers as historical.
+An earlier prototype repository (`hierrl_tissue_retract`) predated three environment
+fixes that are load-bearing for these results — the success threshold (0.8 H\* held 10
+steps → 0.6 H\* held 3), the spring constant (5 → 50 N/m) and randomised target height —
+and reported near-zero success for every algorithm as a consequence. Its useful parts
+have been folded into this repository, which is now the single reference implementation.
 
 ## Ethics
 
