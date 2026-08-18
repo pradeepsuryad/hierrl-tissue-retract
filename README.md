@@ -98,6 +98,28 @@ was the fastest route to eval robustness.
 | Randomisation | grasp target ~ U([−0.05, 0.05]³), target height H\* ~ U([0.15, 0.20]) m |
 | Termination | success (3 consecutive steps), tear, or 500-step truncation |
 
+## What this repository reproduces
+
+The notebook is the **v2** experiment: it implements the environment and all four
+algorithms, and it is what produces the 200k-step results above. Every constant in the
+paper's Table 1 was checked against it — spring constant, force limit, randomised target
+height, the 3-step/0.6H\* success condition, the jaw threshold and scale, all four
+algorithms' learning rates, batch sizes, buffers and warmups, the 80k BC anneal horizon,
+and the −0.5 GRASP jaw bias. Both documented bug fixes are present and commented.
+
+Two things it does **not** contain, and which therefore cannot be re-run from here:
+
+- **The v3 / v3T generalisation study.** The 26D goal-aware observation, the BC floor
+  (λ_min = 0.15), the continuous HOLD reward, the ViSkill-DEX sub-agents, and evaluation
+  on held-out seeds 100–109 are not in this notebook. The generalisation table above and
+  conclusions 3 and 4 come from the paper and are not reproducible from this code yet.
+- **Stored results.** The notebook is committed without outputs, so opening it shows code
+  only; the figures in `figures/` were extracted from a local executed copy. Reproducing
+  the numbers means re-running four algorithms for 200,000 steps each.
+
+One known paper/code discrepancy: the paper specifies anchor jitter ε ~ N(0, 0.02² I),
+while the code uses `uniform(-0.02, 0.02)`.
+
 ## Contents
 
 ```
