@@ -30,7 +30,7 @@ Success = tissue displacement ≥ 0.6 H\* held for 3 consecutive steps, on a 30-
 sliding window. Seed 42, single CPU core.
 
 **Hierarchy wins on sustained performance.** ViSkill reaches near-peak by step 25,000 —
-roughly 7× faster than SAC's first success at step 110,000 — through gradient isolation:
+4.4× fewer steps (25k vs 110k) than SAC's first success — through gradient isolation:
 each sub-policy receives gradients only from its own phase, so a failed RETRACT cannot
 corrupt the APPROACH policy.
 
@@ -48,7 +48,7 @@ four would mis-order them.
 |---|---|---|---|
 | ViSkill-SAC (v2, 23D obs) | 60.0% | 10.0% | 50.0 pp |
 | ViSkill-DEX (v3, 26D obs) | 80.0% | 30.0% | 50.0 pp |
-| **ViSkill-DEX (v3T, tuned)** | 57.0% | **50.0%** | **6.7 pp** |
+| **ViSkill-DEX (v3T, tuned)** | 56.7% | **50.0%** | **6.7 pp** |
 
 Eval is 10 held-out seeds (100–109) with the deterministic greedy policy.
 
