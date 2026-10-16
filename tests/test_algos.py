@@ -51,6 +51,34 @@ def test_viskill_exposes_four_sub_policies():
     assert a.shape == (ACT,) and np.all(np.abs(a) <= 1.0)
 
 
+def test_viskill_sub_policies_train_only_on_their_own_phase():
+    # Each sub-policy's buffer holds only its own phase's transitions; the value
+    # net sees every transition through the separate global buffer.
+    v = ViSkill(OBS, ACT, n_skills=4, batch_size=32, warmup_steps=0)
+    per_phase = [5, 3, 4, 2]
+    for phase, n in enumerate(per_phase):
+        for _ in range(n):
+            o = np.random.randn(OBS).astype(np.float32)
+            a = np.random.uniform(-1, 1, ACT).astype(np.float32)
+            v.store(o, a, 0.0, o, False, phase, {})
+    assert [len(s.buffer) for s in v.skills] == per_phase
+    assert len(v.global_buffer) == sum(per_phase)
+
+
+def test_viskill_original_buffer_sharing_is_reproducible():
+    # approach_trains_on_all_phases=True restores the original behaviour: APPROACH's
+    # buffer also receives every phase's transitions and trains the value net.
+    v = ViSkill(OBS, ACT, n_skills=4, batch_size=32, warmup_steps=0, approach_trains_on_all_phases=True)
+    per_phase = [5, 3, 4, 2]
+    for phase, n in enumerate(per_phase):
+        for _ in range(n):
+            o = np.random.randn(OBS).astype(np.float32)
+            a = np.random.uniform(-1, 1, ACT).astype(np.float32)
+            v.store(o, a, 0.0, o, False, phase, {})
+    assert v.global_buffer is v.skills[0].buffer
+    assert [len(s.buffer) for s in v.skills] == [5 + sum(per_phase), 3, 4, 2]
+
+
 def test_train_loop_runs_end_to_end():
     from hierrl.envs.tissue_retract import TissueRetractEnv
     from hierrl.train import train

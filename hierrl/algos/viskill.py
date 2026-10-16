@@ -8,11 +8,13 @@ import torch.nn.functional as F
 
 from ..common import device
 from .networks import ValueNet
+from .replay import ReplayBuffer
 from .sac import SAC
 
 class ViSkill:
     def __init__(self, obs_dim, act_dim, n_skills=4, lr=3e-4, gamma=0.99, tau=0.005,
-                 batch_size=128, warmup_steps=500, buffer_capacity=150_000):
+                 batch_size=128, warmup_steps=500, buffer_capacity=150_000,
+                 approach_trains_on_all_phases=False):
         self.n_skills = n_skills; self.obs_dim = obs_dim; self.act_dim = act_dim
         self.skills = [SAC(obs_dim, act_dim, lr=lr, gamma=gamma, tau=tau,
                            batch_size=batch_size, warmup_steps=warmup_steps,
@@ -20,6 +22,15 @@ class ViSkill:
                        for _ in range(n_skills)]
         self.value_net = ValueNet(obs_dim).to(device)
         self.value_opt = optim.Adam(self.value_net.parameters(), lr=lr)
+        # Every transition with the environment reward goes to global_buffer, which
+        # trains the value net. By default it is separate, so each sub-policy trains
+        # only on its own phase's transitions. approach_trains_on_all_phases=True
+        # reproduces the original implementation, in which that buffer was APPROACH's
+        # own (skills[0].buffer). In the 5-seed re-run the original sustained higher
+        # late-training success; see results/rerun/summary.md.
+        self.approach_trains_on_all_phases = approach_trains_on_all_phases
+        self.global_buffer = (self.skills[0].buffer if approach_trains_on_all_phases
+                              else ReplayBuffer(obs_dim, act_dim, buffer_capacity))
         self.v_thresholds = [-2.0, -1.0, 0.0]
         self._v_history   = deque(maxlen=2000)
         self._meta_reliable = False
@@ -68,12 +79,12 @@ class ViSkill:
         skill_id   = min(int(env_phase), self.n_skills - 1)
         sub_reward = self._skill_reward(info, skill_id)
         self.skills[skill_id].buffer.add(obs, action, sub_reward, next_obs, float(done))
-        self.skills[0].buffer.add(obs, action, reward, next_obs, float(done))
+        self.global_buffer.add(obs, action, reward, next_obs, float(done))
 
     def update(self, env_phase=0):
         skill_id = min(int(env_phase), self.n_skills - 1)
         logs = self.skills[skill_id].update()
-        buf = self.skills[0].buffer
+        buf = self.global_buffer
         if len(buf) >= 256:
             obs_b, _, rews, next_obs_b, dones_b = buf.sample(256)
             with torch.no_grad():
