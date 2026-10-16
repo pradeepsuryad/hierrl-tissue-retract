@@ -1,0 +1,41 @@
+# hierrl-tissue-retract test run
+# date: 2026-10-16 19:27 UTC
+# command: python -m pytest tests/ -v
+# python 3.11.15, torch 2.14.1+cpu, numpy 2.4.6
+
+============================= test session starts ==============================
+collecting ... collected 25 items
+
+tests/test_algos.py::test_act_is_in_bounds[<lambda>0] PASSED
+tests/test_algos.py::test_act_is_in_bounds[<lambda>1] PASSED
+tests/test_algos.py::test_act_is_in_bounds[<lambda>2] PASSED
+tests/test_algos.py::test_update_runs_and_stays_finite[<lambda>0] PASSED
+tests/test_algos.py::test_update_runs_and_stays_finite[<lambda>1] PASSED
+tests/test_algos.py::test_viskill_exposes_four_sub_policies PASSED
+tests/test_algos.py::test_viskill_sub_policies_train_only_on_their_own_phase PASSED
+tests/test_algos.py::test_viskill_original_buffer_sharing_is_reproducible PASSED
+tests/test_algos.py::test_train_loop_runs_end_to_end PASSED
+tests/test_algos.py::test_runs_repeat_when_seeded_before_building PASSED
+tests/test_algos.py::test_baseline_train_loops_run_end_to_end[sac] PASSED
+tests/test_algos.py::test_baseline_train_loops_run_end_to_end[ddpg] PASSED
+tests/test_algos.py::test_baseline_train_loops_run_end_to_end[dex] PASSED
+tests/test_algos.py::test_replay_buffer_roundtrip PASSED
+tests/test_env.py::TestPaperConstants::test_physics PASSED
+tests/test_env.py::TestPaperConstants::test_target_height_is_randomised PASSED
+tests/test_env.py::TestPaperConstants::test_action_and_observation_shape PASSED
+tests/test_env.py::TestBugFixOne::test_success_needs_three_consecutive_steps PASSED
+tests/test_env.py::TestBugFixOne::test_source_uses_the_relaxed_thresholds PASSED
+tests/test_env.py::TestDynamics::test_step_returns_the_gymnasium_five_tuple PASSED
+tests/test_env.py::TestDynamics::test_episode_truncates_at_max_steps PASSED
+tests/test_env.py::TestDynamics::test_reset_is_deterministic_given_a_seed PASSED
+tests/test_env.py::TestDynamics::test_observation_stays_finite_under_extreme_actions PASSED
+tests/test_env.py::TestRegistration::test_gym_make[TissueRetract-v0] PASSED
+tests/test_env.py::TestRegistration::test_gym_make[TissueRetract-v1] PASSED
+
+=============================== warnings summary ===============================
+tests/test_env.py::TestRegistration::test_gym_make[TissueRetract-v0]
+  <site-packages>/gymnasium/envs/registration.py:513: DeprecationWarning: WARN: The environment TissueRetract-v0 is out of date. You should consider upgrading to version `v1`.
+    logger.deprecation(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 25 passed, 1 warning in 8.30s =========================
