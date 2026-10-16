@@ -24,7 +24,7 @@ You *could* hand-code a controller (the demo generator in Cell 12 does exactly t
 
 **1. Privileged Information.** The scripted controller cheats — it reads `env.grasp_target` and `env.retract_dir` directly from the simulator's internal state. A real robot doesn't know the exact grasp point or pull direction. The RL agent must learn from observations only.
 
-**2. Brittleness.** The scripted controller works for this exact spring-mass tissue model. Change the tissue stiffness, anchor layout, or retraction angle, and you'd need to rewrite the controller. RL generalises.
+**2. Brittleness.** The scripted controller works for this exact tissue model. Change the tissue stiffness, anchor layout, or retraction angle, and you'd need to rewrite the controller. RL generalises.
 
 **3. Research Question.** The real question isn't "can we solve tissue retraction" — it's "can hierarchical RL with demonstrations solve multi-phase surgical tasks that flat RL cannot?" Your results prove it can: flat SAC gets 16.7%, ViSkill-DEX v3T gets 50% eval.
 
@@ -184,7 +184,7 @@ joints[:3] = clip(joints[:3] + action[:3] * 0.025, -π, π)
 ```
 This is a simplified proxy — real robots use inverse kinematics. Here, the first 3 joints loosely track gripper movement.
 
-**4. Tissue deforms** via spring-mass physics:
+**4. Tissue deforms** kinematically. There are no masses or velocities; the anchors are placed directly every step:
 ```python
 if not grasped:
     # tissue relaxes toward rest position (spring return)
@@ -198,7 +198,7 @@ else:
         anchor_pos[i] = anchor_rest[i] + displacement × falloff
 ```
 
-**Why exponential falloff?** Real tissue doesn't move uniformly. The point you're pulling moves the most; tissue further away resists more. `exp(-d × 10)` creates this natural behavior.
+**Why exponential falloff?** So that anchors near the grasp point follow the gripper closely and distant ones barely move: a cheap stand-in for real tissue, which does not move uniformly.
 
 **5. Forces computed:**
 ```python
@@ -237,8 +237,9 @@ def _reward(dist_grasp, tissue_disp):
     elif phase == GRASP:
         grasp_bonus = 10.0 if grasped else 0.0
         return -dist_grasp × 0.3 + grasp_bonus + force_pen
-        # Massive +10 spike when grasping succeeds
-        # This is the critical sparse reward signal
+        # Meant as a +10 spike on a successful grasp, but it never fires:
+        # grasped is set after this reward is computed, in the same step
+        # that moves the phase to RETRACT (paper/ERRATA.md, item 3c)
         
     else:  # RETRACT or HOLD
         progress = tissue_disp / target_height
@@ -249,11 +250,11 @@ def _reward(dist_grasp, tissue_disp):
 
 **Why logarithmic force penalty?** Linear penalty would be too gentle at low forces and too harsh at high forces. Logarithmic is gentle at first (lets the agent explore) but grows sharply as force approaches tear threshold — like a soft warning that becomes urgent.
 
-**Why +10 grasp bonus?** Grasping is the hardest transition. Without a large bonus, the agent might never discover that closing the jaw at the right moment is valuable — the natural reward signal is too small.
+**The +10 grasp bonus never fires.** It was meant to reward the hardest transition, but `grasped` only becomes true in the step that also leaves GRASP, after that step's reward has been computed, so no transition in training carries it. `scripts/check_errata.py` checks this.
 
 ## Discount Factor: γ = 0.99
 
-The agent cares about rewards ~100 steps into the future. This matters because the grasp bonus (+10) comes many steps after the approach decisions that made it possible. With γ = 0.9, the +10 bonus at step 20 would be worth only 10 × 0.9^20 = 1.2 at step 0. With γ = 0.99, it's worth 10 × 0.99^20 = 8.2 — much stronger learning signal.
+The agent cares about rewards ~100 steps into the future. This matters because the retraction reward arrives many steps after the approach decisions that made it possible. A reward 20 steps away keeps 0.9^20 = 12% of its value with γ = 0.9, but 0.99^20 = 82% with γ = 0.99.
 
 ---
 
@@ -272,7 +273,7 @@ Just the project title. "v2" means this is the second major version after bug fi
 **Why each package:**
 - `gymnasium`: The RL environment API. Provides `env.reset()`, `env.step()`, `observation_space`, `action_space`.
 - `torch`: PyTorch neural network library. All actors, critics, and value networks are PyTorch modules.
-- `numpy`: Array math for environment physics (spring-mass calculations).
+- `numpy`: Array math for the environment (tissue deformation and forces).
 - `matplotlib`: All plots — learning curves, 3D trajectories, phase timelines.
 - `scipy`: Used for `scipy.stats` (smoothing).
 - `tqdm`: Progress bars during training.
@@ -330,7 +331,7 @@ self.jaw_angle     = 0.6                           # gripper starts half-open
 
 **Why jitter?** Without it, every episode starts identically and the agent memorises one trajectory. Jitter forces the agent to generalise to different starting conditions.
 
-### `_deform_tissue()`: Spring-mass physics
+### `_deform_tissue()`: Kinematic tissue model
 ```python
 if not grasped:
     anchor_pos = anchor_pos * 0.95 + anchor_rest * 0.05  # relax
@@ -340,7 +341,7 @@ else:
         anchor_pos[i] = anchor_rest[i] + gripper_displacement × falloff
 ```
 
-The 0.95/0.05 blend is exponential smoothing — tissue slowly springs back when not held. The `exp(-d×10)` creates realistic deformation where close tissue follows the gripper and far tissue barely moves.
+The 0.95/0.05 blend is exponential smoothing — tissue slowly springs back when not held. The `exp(-d×10)` falloff makes close tissue follow the gripper while far tissue barely moves.
 
 ### `_test_env()`: Sanity check
 Runs 5 random steps in both modes, asserts obs shape is (23,). If this fails, the notebook stops immediately — no wasted training on a broken environment.
@@ -481,7 +482,7 @@ ViSkill
 └── value_net: ValueNet for meta-controller
 ```
 
-Each sub-agent is a complete SAC instance with its own actor, critic, target networks, and replay buffer.
+Each sub-agent is a complete SAC instance with its own actor, critic, target networks, and replay buffer. In the notebook as run for the paper, APPROACH's replay buffer was also the value network's, so APPROACH trained on every phase's transitions (see Store Function below).
 
 ### Skill Selection
 ```python
@@ -506,7 +507,9 @@ RETRACT:   tissue_disp / 0.15 × 0.5           (pull up)
 HOLD:      +1.0 if disp > 0.09 else -0.2      (stay steady)
 ```
 
-**Why different from global reward?** The global reward is sparse — the agent only gets meaningful signal when it transitions between phases. Sub-agent rewards are DENSE — every step has informative reward for the current sub-task. Dense rewards make learning dramatically faster.
+The GRASP +5 never fires. `train()` files each transition under the phase *after* the step, and the step that grasps also leaves GRASP, so it is stored as a RETRACT transition (paper/ERRATA.md, item 3d).
+
+**Why different from global reward?** Each sub-agent gets a reward shaped for its own sub-task, while the value network learns from the environment's reward. Both are dense: every step carries a distance or displacement term.
 
 ### Jaw Bias Fix (Bug Fix 3)
 ```python
@@ -521,10 +524,10 @@ def store(self, obs, action, reward, next_obs, done, env_phase, info):
     skill_id = min(int(env_phase), 3)
     sub_reward = self._skill_reward(info, skill_id)
     self.skills[skill_id].buffer.add(obs, action, sub_reward, next_obs, done)
-    self.skills[0].buffer.add(obs, action, reward, next_obs, done)
+    self.global_buffer.add(obs, action, reward, next_obs, done)
 ```
 
-**Two buffer writes:** The transition goes into (1) the active sub-agent's buffer with sub-reward, and (2) skill[0]'s buffer with global reward. Skill[0]'s buffer is shared across all skills for the value network training.
+**Two buffer writes:** The transition goes into (1) the active sub-agent's buffer with its sub-reward, and (2) the value network's buffer with the environment reward. In the notebook as run for the paper, (2) was `self.skills[0].buffer`, APPROACH's own buffer, so APPROACH's updates also sampled every other phase's transitions. The fixed code gives the value network a buffer of its own; `ViSkill(..., approach_trains_on_all_phases=True)` restores the original. See paper/ERRATA.md, item 1.
 
 ## Cell 11 — Markdown: Demo Generator Section
 
