@@ -88,6 +88,23 @@ def test_train_loop_runs_end_to_end():
     assert len(logs["success_rate"]) == 2
 
 
+def test_runs_repeat_when_seeded_before_building():
+    # train() seeds PyTorch only after the agent exists, so the seed alone does not fix
+    # the initial weights. Seeding first makes a run repeat exactly (README, "Seeds").
+    from hierrl.common import seed_everything
+    from hierrl.envs.tissue_retract import TissueRetractEnv
+    from hierrl.train import train
+
+    def run():
+        torch.set_num_threads(1)
+        seed_everything(0)
+        env = TissueRetractEnv(max_steps=50, seed=0)
+        agent = ViSkill(OBS, ACT, n_skills=4, batch_size=32, warmup_steps=10)
+        return train("repeat", agent, env, total_steps=300, log_every=100, seed=0, verbose=False)
+
+    assert run() == run()
+
+
 @pytest.mark.parametrize("name", ["sac", "ddpg", "dex"])
 def test_baseline_train_loops_run_end_to_end(name):
     # Each baseline must survive real updates inside train(), not just construction.
