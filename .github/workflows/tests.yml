@@ -41,3 +41,8 @@ jobs:
         # controller scores zero. Cheap enough for CI; the full 200k-step
         # training comparison is the notebook's job.
         run: python scripts/verify_paper_claims.py --episodes 50
+
+      - name: Re-check the code-level errata
+        # paper/ERRATA.md describes what the published code actually does where
+        # the paper says otherwise. This fails if the code stops matching it.
+        run: python scripts/check_errata.py
